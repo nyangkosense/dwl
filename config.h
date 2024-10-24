@@ -1,3 +1,8 @@
+/* Autostart variables */
+#define USER "seb"
+#define USERDIR "/home/" USER
+#define SCRIPTDIR USERDIR "/dwl/scripts"
+
 /* Taken from https://github.com/djpohly/dwl/issues/466 */
 #define COLOR(hex)    { ((hex >> 24) & 0xFF) / 255.0f, \
                         ((hex >> 16) & 0xFF) / 255.0f, \
@@ -26,12 +31,12 @@ static const float fullscreen_bg[]         = {0.1f, 0.1f, 0.1f, 1.0f}; /* You ca
 /* logging */
 static int log_level = WLR_ERROR;
 
-/* Autostart */
+/* auto */
 static const char *const autostart[] = {
-        "wbg", "/path/to/your/image", NULL,
-        "/home/seb/dwl/scripts/start.sh", NULL,
-        "/home/seb/dwl/scripts/dwlb.sh", NULL,
-        NULL /* terminate */
+    "wbg", "/path/to/your/image", NULL,
+    SCRIPTDIR "/start.sh", NULL,
+    SCRIPTDIR "/dwlb.sh", NULL,
+    NULL /* terminate */
 };
 
 /* NOTE: ALWAYS keep a rule declared even if you don't use rules (e.g leave at least one example) */
