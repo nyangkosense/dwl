@@ -14,10 +14,10 @@ DATADIR = $(PREFIX)/share
 
 # Uncomment and modify these lines with your specific paths
 WLR_INCS = -I/usr/include/pixman-1 -I/usr/include/libdrm \
-    -I/home/seb/dwl_project/dwl/wlroots/build/prefix/include/wlroots-0.19
+    -I/home/seb/dwl/wlroots/build/prefix/include/wlroots-0.19
 
 WLR_LIBS = -Wl,-rpath,/home/seb/dwl_project/dwl/wlroots/build \
-    -L/home/seb/dwl_project/dwl/wlroots/build -lwlroots-0.19
+    -L/home/seb/dwl/wlroots/build -lwlroots-0.19
     
     
 # Allow using an alternative wlroots installations
