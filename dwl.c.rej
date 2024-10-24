@@ -1,0 +1,12 @@
+--- dwl.c
++++ dwl.c
+@@ -103,7 +103,8 @@ typedef struct {
+ } Button;
+ 
+ typedef struct Monitor Monitor;
+-typedef struct {
++typedef struct Client Client;
++struct Client {
+ 	/* Must keep these three elements in this order */
+ 	unsigned int type; /* XDGShell or X11* */
+ 	struct wlr_box geom; /* layout-relative, includes border */
