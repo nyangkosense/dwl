@@ -21,7 +21,7 @@ static const float urgentcolor[] = COLOR(0x8C4665ff);  // Urgent border (muted r
 static const float fullscreen_bg[]         = {0.1f, 0.1f, 0.1f, 1.0f}; /* You can also use glsl colors */
 
 /* tagging - TAGCOUNT must be no greater than 31 */
-#define TAGCOUNT (9)
+#define TAGCOUNT (4)
 
 /* logging */
 static int log_level = WLR_ERROR;
@@ -29,8 +29,8 @@ static int log_level = WLR_ERROR;
 /* Autostart */
 static const char *const autostart[] = {
         "wbg", "/path/to/your/image", NULL,
-        "/home/seb/start.sh", NULL,
-        "/home/seb/dwlb.sh", NULL,
+        "/home/seb/dwl/scripts/start.sh", NULL,
+        "/home/seb/dwl/scripts/dwlb.sh", NULL,
         NULL /* terminate */
 };
 
