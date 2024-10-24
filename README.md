@@ -1,6 +1,6 @@
 ## dwl - dwm for wayland custom ver.
 
-![20241024_16h27m36s_grim](https://github.com/user-attachments/assets/ca9939c7-1725-4075-a221-f8467cd4b786)
+![20241024_16h27m36s_grim](https://github.com/user-attachments/assets/fdf2ee11-6f3a-48d6-870d-07051429a1ac)
 
 - custom (patched) version of dwl. 
 - patches applied see patches/
