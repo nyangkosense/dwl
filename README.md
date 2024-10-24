@@ -1,8 +1,10 @@
 ## dwl - dwm for wayland custom ver.
 
-- Custom (patched) version of dwl. 
-- Patches applied see patches/
+- custom (patched) version of dwl. 
+- patches applied see patches/
 - requires dwlb for bar
+- the other branch holds the patched in bar patch. However, i only got status working with slstatus (which has no colors and options like dwlb)
+- furthermore there are not that many patches for it yet. 
 
 ### Makefile and config.mk 
 
