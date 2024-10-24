@@ -8,15 +8,15 @@ static const int sloppyfocus               = 1;  /* focus follows mouse */
 static const int bypass_surface_visibility = 0;  /* 1 means idle inhibitors will disable idle tracking even if it's surface isn't visible  */
 static const int smartgaps                 = 0;  /* 1 means no outer gap when there is only one window */
 static const int monoclegaps               = 0;  /* 1 means outer gaps in monocle layout */
-static const unsigned int borderpx         = 1;  /* border pixel of windows */
+static const unsigned int borderpx         = 4;  /* border pixel of windows */
 static const unsigned int gappih           = 10; /* horiz inner gap between windows */
 static const unsigned int gappiv           = 10; /* vert inner gap between windows */
 static const unsigned int gappoh           = 10; /* horiz outer gap between windows and screen edge */
 static const unsigned int gappov           = 10; /* vert outer gap between windows and screen edge */
-static const float rootcolor[]             = COLOR(0x222222ff);
-static const float bordercolor[]           = COLOR(0x444444ff);
-static const float focuscolor[]            = COLOR(0x005577ff);
-static const float urgentcolor[]           = COLOR(0xff0000ff);
+static const float rootcolor[]   = COLOR(0x1A1A1Aff);  // Background color
+static const float bordercolor[] = COLOR(0x333333ff);  // Normal border (color0)
+static const float focuscolor[]  = COLOR(0x8C4665ff);  // Focused border (slate blue/color4)
+static const float urgentcolor[] = COLOR(0x8C4665ff);  // Urgent border (muted rose/color1)
 /* This conforms to the xdg-protocol. Set the alpha to zero to restore the old behavior */
 static const float fullscreen_bg[]         = {0.1f, 0.1f, 0.1f, 1.0f}; /* You can also use glsl colors */
 
@@ -30,9 +30,9 @@ static int log_level = WLR_ERROR;
 static const char *const autostart[] = {
         "wbg", "/path/to/your/image", NULL,
         "/home/seb/start.sh", NULL,
+        "/home/seb/dwlb.sh", NULL,
         NULL /* terminate */
 };
-
 
 /* NOTE: ALWAYS keep a rule declared even if you don't use rules (e.g leave at least one example) */
 static const Rule rules[] = {
@@ -136,7 +136,16 @@ static const enum libinput_config_tap_button_map button_map = LIBINPUT_CONFIG_TA
 
 /* commands */
 static const char *termcmd[] = { "kitty", NULL };
-static const char *menucmd[] = { "dmenu-wl_run", NULL };
+static const char *menucmd[] = { "dmenu-wl_run",
+    "-l", "15",
+    "-h", "30",
+    "-fn", "monospace:size=11",
+    "-nb", "#1A1A1A",
+    "-nf", "#899CA1",
+    "-sb", "#5E468C",
+    "-sf", "#C0C0C0",
+    "-p", "Run:",
+    NULL };
 
 static const Key keys[] = {
 	/* Note that Shift changes certain key codes: c -> C, 2 -> at, etc. */
