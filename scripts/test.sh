@@ -7,7 +7,7 @@ ALSAMIXER_CMD="$TERMINAL -e alsamixer"
 launch_dwlb() {
     dwlb -ipc \
         -status-commands \
-        -font "PragmataPro:size=13" \
+        -font "PragmataPro:size=10" \
         -vertical-padding 6 \
         -active-fg-color "#C0C0C0" \
         -active-bg-color "#1A1A1A" \
