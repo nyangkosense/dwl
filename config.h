@@ -34,8 +34,8 @@ static int log_level = WLR_ERROR;
 /* auto */
 static const char *const autostart[] = {
     "wbg", "/path/to/your/image", NULL,
+    SCRIPTDIR "/test.sh", NULL,
     SCRIPTDIR "/start.sh", NULL,
-    SCRIPTDIR "/dwlb.sh", NULL,
     NULL /* terminate */
 };
 
