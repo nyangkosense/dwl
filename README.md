@@ -1,5 +1,8 @@
 ## dwl - dwm for wayland custom ver.
 
+![20241024_16h36m07s_grim](https://github.com/user-attachments/assets/32700f17-268a-414d-909d-f9944453acda)
+
+
 - custom (patched) version of dwl. 
 - patches applied see patches/
 - requires dwlb for bar and dmenu_wl for dmenu wayland version
