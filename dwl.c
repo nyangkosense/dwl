@@ -299,6 +299,7 @@ static void createpopup(struct wl_listener *listener, void *data);
 static void cursorconstrain(struct wlr_pointer_constraint_v1 *constraint);
 static void cursorframe(struct wl_listener *listener, void *data);
 static void cursorwarptohint(void);
+static void cyclelayout(const Arg *arg);
 static void deck(Monitor *m);
 static void defaultgaps(const Arg *arg);
 static void destroydecoration(struct wl_listener *listener, void *data);
@@ -1320,6 +1321,33 @@ cursorwarptohint(void)
 		wlr_cursor_warp(cursor, NULL, sx + c->geom.x + c->bw, sy + c->geom.y + c->bw);
 		wlr_seat_pointer_warp(active_constraint->seat, sx, sy);
 	}
+}
+
+void
+cyclelayout(const Arg *arg) {
+
+	/* The NULL terminator (in config.def.h) was interfering with the IPC protocol 
+	because when dwlb would try to read/iterate through the layouts via IPC, 
+	it would encounter the NULL entry which wasn't expected by the protocol.
+	fix: use LENGTH(layouts) instead of checking for NULL */ 
+	
+    Layout *l;
+    size_t i = 0;   
+    
+    for(l = (Layout *)layouts; l != selmon->lt[selmon->sellt]; l++)
+        i++;
+
+    if(arg->i > 0) {
+        if(i + 1 < LENGTH(layouts))
+            setlayout(&((Arg) { .v = &layouts[i + 1] }));
+        else
+            setlayout(&((Arg) { .v = &layouts[0] }));
+    } else {
+        if(i > 0)
+            setlayout(&((Arg) { .v = &layouts[i - 1] }));
+        else
+            setlayout(&((Arg) { .v = &layouts[LENGTH(layouts) - 1] }));
+    }
 }
 
 void
