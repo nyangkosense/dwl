@@ -1,12 +1,10 @@
 --- dwl.c
 +++ dwl.c
-@@ -103,7 +103,8 @@ typedef struct {
- } Button;
- 
- typedef struct Monitor Monitor;
--typedef struct {
-+typedef struct Client Client;
-+struct Client {
- 	/* Must keep these three elements in this order */
- 	unsigned int type; /* XDGShell or X11* */
- 	struct wlr_box geom; /* layout-relative, includes border */
+@@ -267,6 +267,7 @@ static void createpointerconstraint(struct wl_listener *listener, void *data);
+ static void cursorconstrain(struct wlr_pointer_constraint_v1 *constraint);
+ static void cursorframe(struct wl_listener *listener, void *data);
+ static void cursorwarptohint(void);
++static void deck(Monitor *m);
+ static void destroydecoration(struct wl_listener *listener, void *data);
+ static void destroydragicon(struct wl_listener *listener, void *data);
+ static void destroyidleinhibitor(struct wl_listener *listener, void *data);

@@ -1,10 +1,10 @@
 --- config.def.h
 +++ config.def.h
-@@ -34,6 +34,7 @@ static const Layout layouts[] = {
+@@ -33,6 +33,7 @@ static const Layout layouts[] = {
  	{ "[]=",      tile },
  	{ "><>",      NULL },    /* no layout function means floating behavior */
  	{ "[M]",      monocle },
-+	{ "||",       col },
++	{ "[D]",      deck },
  };
  
  /* monitors */
@@ -12,7 +12,7 @@
  	{ MODKEY,                    XKB_KEY_t,          setlayout,      {.v = &layouts[0]} },
  	{ MODKEY,                    XKB_KEY_f,          setlayout,      {.v = &layouts[1]} },
  	{ MODKEY,                    XKB_KEY_m,          setlayout,      {.v = &layouts[2]} },
-+	{ MODKEY,                    XKB_KEY_c,          setlayout,      {.v = &layouts[3]} },
++	{ MODKEY,                    XKB_KEY_r,          setlayout,      {.v = &layouts[3]} },
  	{ MODKEY,                    XKB_KEY_space,      setlayout,      {0} },
  	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_space,      togglefloating, {0} },
  	{ MODKEY,                    XKB_KEY_e,         togglefullscreen, {0} },

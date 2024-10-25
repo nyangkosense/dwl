@@ -81,6 +81,7 @@
 #define TAGMASK                 ((1u << TAGCOUNT) - 1)
 #define LISTEN(E, L, H)         wl_signal_add((E), ((L)->notify = (H), (L)))
 #define LISTEN_STATIC(E, H)     do { static struct wl_listener _l = {.notify = (H)}; wl_signal_add((E), &_l); } while (0)
+#define ROUND(x) ((int)((x) + 0.5))
 
 /* enums */
 enum { CurNormal, CurPressed, CurMove, CurResize }; /* cursor */
@@ -298,6 +299,7 @@ static void createpopup(struct wl_listener *listener, void *data);
 static void cursorconstrain(struct wlr_pointer_constraint_v1 *constraint);
 static void cursorframe(struct wl_listener *listener, void *data);
 static void cursorwarptohint(void);
+static void deck(Monitor *m);
 static void defaultgaps(const Arg *arg);
 static void destroydecoration(struct wl_listener *listener, void *data);
 static void destroydragicon(struct wl_listener *listener, void *data);
@@ -1324,6 +1326,41 @@ void
 defaultgaps(const Arg *arg)
 {
 	setgaps(gappoh, gappov, gappih, gappiv);
+}
+
+void
+deck(Monitor *m)
+{
+	unsigned int mw, my;
+	int i, n = 0;
+	Client *c;
+
+	wl_list_for_each(c, &clients, link)
+		if (VISIBLEON(c, m) && !c->isfloating && !c->isfullscreen)
+			n++;
+	if (n == 0)
+		return;
+
+	if (n > m->nmaster)
+		mw = m->nmaster ? ROUND(m->w.width * m->mfact) : 0;
+	else
+		mw = m->w.width;
+	i = my = 0;
+	wl_list_for_each(c, &clients, link) {
+		if (!VISIBLEON(c, m) || c->isfloating || c->isfullscreen)
+			continue;
+		if (i < m->nmaster) {
+			resize(c, (struct wlr_box){.x = m->w.x, .y = m->w.y + my, .width = mw,
+				.height = (m->w.height - my) / (MIN(n, m->nmaster) - i)}, 0);
+			my += c->geom.height;
+		} else {
+			resize(c, (struct wlr_box){.x = m->w.x + mw, .y = m->w.y,
+				.width = m->w.width - mw, .height = m->w.height}, 0);
+			if (c == focustop(m))
+				wlr_scene_node_raise_to_top(&c->scene->node);
+		}
+		i++;
+	}
 }
 
 void
@@ -3248,9 +3285,6 @@ setup(void)
 	}
 #endif
 }
-
-// Add this macro at the top of your file or in a header
-#define ROUND(x) ((int)((x) + 0.5))
 
 void snail(Monitor *m)
 {
