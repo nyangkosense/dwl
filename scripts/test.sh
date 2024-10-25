@@ -21,17 +21,16 @@ launch_dwlb() {
         -middle-bg-color-selected "#1A1A1A" &
 }
 
-# Function to get CPU usage with enhanced symbol
+
+# Sys 
 get_cpu() {
     top -bn1 | grep "Cpu(s)" | awk '{print $2}' | cut -d. -f1
 }
 
-# Function to get RAM usage with enhanced symbol
 get_ram() {
     free -m | awk '/Mem:/ {printf "%d", ($3/$2)*100}'
 }
 
-# Function to get date and time with enhanced symbols
 get_datetime() {
     local date_part=$(date "+%Y-%m-%d")
     local time_part=$(date "+%H:%M")
@@ -39,7 +38,6 @@ get_datetime() {
 }
 
 # Function to get weather with enhanced symbols
-# Function to get weather with SF style symbols
 get_weather() {
     CACHE_FILE="/tmp/weather.cache"
     CACHE_LIFE=1800
@@ -76,7 +74,6 @@ get_weather() {
 }
 
 # Function to get network status for enp12s0
-# Function to get network status with new ethernet symbols
 get_network() {
     local wired="enp12s0"
     local wireless="wlan0"
@@ -84,7 +81,7 @@ get_network() {
     if [ -e "/sys/class/net/${wired}" ]; then
         local wired_state=$(cat "/sys/class/net/${wired}/operstate")
         if [ "$wired_state" = "up" ]; then
-            echo "󰌘"  # Connected ethernet (alternative options: 󱎔 󰓓 󰛳)
+            echo "󰌘"  # Connected ethernet
             return
         else
             echo "󰌙"  # Disconnected ethernet
@@ -104,7 +101,7 @@ get_network() {
     fi
 }
 
-# Modified update_status with new design
+# Setting status
 update_status() {
     while true; do
         local cpu_val=$(get_cpu)
