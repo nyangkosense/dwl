@@ -23,12 +23,12 @@ static const float bordercolor[] = COLOR(0x333333ff);  // Normal border (color0)
 static const float focuscolor[]  = COLOR(0x8C4665ff);  // Focused border (slate blue/color4)
 static const float urgentcolor[] = COLOR(0x8C4665ff);  // Urgent border (muted rose/color1)
 static const char *cursor_theme            = NULL;
-static const char cursor_size[]            = "40"; /* Make sure it's a valid integer, otherwise things will break */
+static const char cursor_size[]            = "35"; /* Make sure it's a valid integer, otherwise things will break */
 /* This conforms to the xdg-protocol. Set the alpha to zero to restore the old behavior */
 static const float fullscreen_bg[]         = {0.1f, 0.1f, 0.1f, 1.0f}; /* You can also use glsl colors */
 
 /* tagging - TAGCOUNT must be no greater than 31 */
-#define TAGCOUNT (4)
+#define TAGCOUNT (6)
 
 /* logging */
 static int log_level = WLR_ERROR;
@@ -163,6 +163,14 @@ static const Key keys[] = {
 	{ MODKEY,                    XKB_KEY_b,          togglebar,      {0} },
 	{ MODKEY,                    XKB_KEY_j,          focusstack,     {.i = +1} },
 	{ MODKEY,                    XKB_KEY_k,          focusstack,     {.i = -1} },
+	{ MODKEY|WLR_MODIFIER_CTRL,  XKB_KEY_Left,       focusdir,       {.ui = 0} },
+	{ MODKEY|WLR_MODIFIER_CTRL,  XKB_KEY_Right,      focusdir,       {.ui = 1} },
+	{ MODKEY|WLR_MODIFIER_CTRL,  XKB_KEY_Up,         focusdir,       {.ui = 2} },
+	{ MODKEY|WLR_MODIFIER_CTRL,  XKB_KEY_Down,       focusdir,       {.ui = 3} },
+	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_Left,       swapdir,        {.ui = 0} },
+	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_Right,      swapdir,        {.ui = 1} },
+	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_Up,         swapdir,        {.ui = 2} },
+	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_Down,       swapdir,        {.ui = 3} },
 	{ MODKEY,                    XKB_KEY_i,          incnmaster,     {.i = +1} },
 	{ MODKEY,                    XKB_KEY_h,          setmfact,       {.f = -0.05f} },
 	{ MODKEY,                    XKB_KEY_l,          setmfact,       {.f = +0.05f} },
