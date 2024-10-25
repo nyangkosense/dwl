@@ -1,0 +1,34 @@
+--- config.def.h
++++ config.def.h
+@@ -7,6 +7,16 @@
+ static const int sloppyfocus               = 1;  /* focus follows mouse */
+ static const int bypass_surface_visibility = 0;  /* 1 means idle inhibitors will disable idle tracking even if it's surface isn't visible  */
+ static const unsigned int borderpx         = 1;  /* border pixel of windows */
++static const double title_border_width     = 0.75;
++static const unsigned int title_padding    = 11;
++static const int title_top                 = 0;
++static const LayoutType floating_title_type = LAYOUT_TYPE_LABEL;
++static const char title_font[]             = "Dejavu Sans Mono 10.5";
++static const float title_font_color[]      = COLOR(0xffffffff);
++static const float title_focus_bg[]        = COLOR(0x3b3b3bff);
++static const float title_root_bg[]         = COLOR(0x131313ff);
++static const float title_urgent_bg[]       = COLOR(0x00ff00ff);
++static const float title_border_color[]    = COLOR(0x3b3b3bff);
+ static const float rootcolor[]             = COLOR(0x222222ff);
+ static const float bordercolor[]           = COLOR(0x444444ff);
+ static const float focuscolor[]            = COLOR(0x005577ff);
+@@ -30,10 +40,10 @@ static const Rule rules[] = {
+ 
+ /* layout(s) */
+ static const Layout layouts[] = {
+-	/* symbol     arrange function */
+-	{ "[]=",      tile },
+-	{ "><>",      NULL },    /* no layout function means floating behavior */
+-	{ "[M]",      monocle },
++	/* symbol    type               render_only_top          arrange function */
++	{ "[]=",     LAYOUT_TYPE_NONE,  0,                      tile },
++	{ "><>",     LAYOUT_TYPE_LABEL, 0,                      NULL },    /* no layout function means floating behavior */
++	{ "[M]",     LAYOUT_TYPE_TABS_ONLY_MULTIPLE_CLIENTS, 1, monocle },
+ };
+ 
+ /* monitors */

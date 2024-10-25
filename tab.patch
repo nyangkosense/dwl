@@ -1,0 +1,461 @@
+From b624206781513cdff1b9609fc5ac4b848094e1b4 Mon Sep 17 00:00:00 2001
+From: Gavin M <github@gavinm.us>
+Date: Fri, 15 Mar 2024 16:37:23 -0500
+Subject: [PATCH] Tabbed patch
+
+---
+ Makefile     |   2 +-
+ config.def.h |  18 +++-
+ dwl.c        | 276 +++++++++++++++++++++++++++++++++++++++++++++++++--
+ 3 files changed, 281 insertions(+), 15 deletions(-)
+
+diff --git a/Makefile b/Makefile
+index a67fdd3..182eb87 100644
+--- a/Makefile
++++ b/Makefile
+@@ -9,7 +9,7 @@ DWLDEVCFLAGS = -g -pedantic -Wall -Wextra -Wdeclaration-after-statement -Wno-unu
+ 	-Werror=strict-prototypes -Werror=implicit -Werror=return-type -Werror=incompatible-pointer-types -Wfloat-conversion
+ 
+ # CFLAGS / LDFLAGS
+-PKGS      = wlroots wayland-server xkbcommon libinput $(XLIBS)
++PKGS      = wlroots wayland-server xkbcommon libinput cairo pangocairo $(XLIBS)
+ DWLCFLAGS = `$(PKG_CONFIG) --cflags $(PKGS)` $(DWLCPPFLAGS) $(DWLDEVCFLAGS) $(CFLAGS)
+ LDLIBS    = `$(PKG_CONFIG) --libs $(PKGS)` $(LIBS)
+ 
+diff --git a/config.def.h b/config.def.h
+index 9009517..1ca270f 100644
+--- a/config.def.h
++++ b/config.def.h
+@@ -7,6 +7,16 @@
+ static const int sloppyfocus               = 1;  /* focus follows mouse */
+ static const int bypass_surface_visibility = 0;  /* 1 means idle inhibitors will disable idle tracking even if it's surface isn't visible  */
+ static const unsigned int borderpx         = 1;  /* border pixel of windows */
++static const double title_border_width     = 0.75;
++static const unsigned int title_padding    = 11;
++static const int title_top                 = 0;
++static const LayoutType floating_title_type = LAYOUT_TYPE_LABEL;
++static const char title_font[]             = "Dejavu Sans Mono 10.5";
++static const float title_font_color[]      = COLOR(0xffffffff);
++static const float title_focus_bg[]        = COLOR(0x3b3b3bff);
++static const float title_root_bg[]         = COLOR(0x131313ff);
++static const float title_urgent_bg[]       = COLOR(0x00ff00ff);
++static const float title_border_color[]    = COLOR(0x3b3b3bff);
+ static const float rootcolor[]             = COLOR(0x222222ff);
+ static const float bordercolor[]           = COLOR(0x444444ff);
+ static const float focuscolor[]            = COLOR(0x005577ff);
+@@ -30,10 +40,10 @@ static const Rule rules[] = {
+ 
+ /* layout(s) */
+ static const Layout layouts[] = {
+-	/* symbol     arrange function */
+-	{ "[]=",      tile },
+-	{ "><>",      NULL },    /* no layout function means floating behavior */
+-	{ "[M]",      monocle },
++	/* symbol    type               render_only_top          arrange function */
++	{ "[]=",     LAYOUT_TYPE_NONE,  0,                      tile },
++	{ "><>",     LAYOUT_TYPE_LABEL, 0,                      NULL },    /* no layout function means floating behavior */
++	{ "[M]",     LAYOUT_TYPE_TABS_ONLY_MULTIPLE_CLIENTS, 1, monocle },
+ };
+ 
+ /* monitors */
+diff --git a/dwl.c b/dwl.c
+index 5867b0c..e613d17 100644
+--- a/dwl.c
++++ b/dwl.c
+@@ -2,6 +2,11 @@
+  * See LICENSE file for copyright and license details.
+  */
+ #include <getopt.h>
++#include <cairo/cairo.h>
++#include <pango/pangocairo.h>
++#include <pango/pango-font.h>
++#include <pango/pango-layout.h>
++#include <libdrm/drm_fourcc.h>
+ #include <libinput.h>
+ #include <linux/input-event-codes.h>
+ #include <signal.h>
+@@ -13,8 +18,10 @@
+ #include <wayland-server-core.h>
+ #include <wlr/backend.h>
+ #include <wlr/backend/libinput.h>
++#include <wlr/interfaces/wlr_buffer.h>
+ #include <wlr/render/allocator.h>
+ #include <wlr/render/wlr_renderer.h>
++#include <wlr/types/wlr_buffer.h>
+ #include <wlr/types/wlr_compositor.h>
+ #include <wlr/types/wlr_cursor.h>
+ #include <wlr/types/wlr_cursor_shape_v1.h>
+@@ -110,6 +117,7 @@ typedef struct {
+ 	struct wlr_scene_tree *scene;
+ 	struct wlr_scene_rect *border[4]; /* top, bottom, left, right */
+ 	struct wlr_scene_tree *scene_surface;
++	struct wlr_scene_buffer *titlebar;
+ 	struct wl_list link;
+ 	struct wl_list flink;
+ 	union {
+@@ -137,7 +145,7 @@ typedef struct {
+ #endif
+ 	unsigned int bw;
+ 	uint32_t tags;
+-	int isfloating, isurgent, isfullscreen;
++	int isfloating, isurgent, isfullscreen, titleisinit, istabbed;
+ 	uint32_t resize; /* configure serial of a pending resize */
+ } Client;
+ 
+@@ -179,8 +187,17 @@ typedef struct {
+ 	struct wl_listener surface_commit;
+ } LayerSurface;
+ 
++typedef enum {
++	LAYOUT_TYPE_NONE,
++	LAYOUT_TYPE_LABEL,
++	LAYOUT_TYPE_TABS_ONLY_MULTIPLE_CLIENTS,
++	LAYOUT_TYPE_TABS_ALWAYS
++} LayoutType;
++
+ typedef struct {
+ 	const char *symbol;
++	LayoutType type;
++	int render_top_only;
+ 	void (*arrange)(Monitor *);
+ } Layout;
+ 
+@@ -282,6 +299,7 @@ static void focusclient(Client *c, int lift);
+ static void focusmon(const Arg *arg);
+ static void focusstack(const Arg *arg);
+ static Client *focustop(Monitor *m);
++static Client *focustop_onlytiled(Monitor *m, int onlytiled);
+ static void fullscreennotify(struct wl_listener *listener, void *data);
+ static void handlesig(int signo);
+ static void incnmaster(const Arg *arg);
+@@ -309,6 +327,7 @@ static void pointerfocus(Client *c, struct wlr_surface *surface,
+ static void printstatus(void);
+ static void quit(const Arg *arg);
+ static void rendermon(struct wl_listener *listener, void *data);
++static void rendertitlebar(Client *client);
+ static void requestdecorationmode(struct wl_listener *listener, void *data);
+ static void requeststartdrag(struct wl_listener *listener, void *data);
+ static void requestmonstate(struct wl_listener *listener, void *data);
+@@ -349,6 +368,7 @@ static void xytonode(double x, double y, struct wlr_surface **psurface,
+ static void zoom(const Arg *arg);
+ 
+ /* variables */
++static int title_height;
+ static const char broken[] = "broken";
+ static pid_t child_pid = -1;
+ static int locked;
+@@ -973,6 +993,7 @@ createnotify(struct wl_listener *listener, void *data)
+ 	c = xdg_surface->data = ecalloc(1, sizeof(*c));
+ 	c->surface.xdg = xdg_surface;
+ 	c->bw = borderpx;
++	c->titleisinit = c->istabbed = 0;
+ 
+ 	wlr_xdg_toplevel_set_wm_capabilities(xdg_surface->toplevel,
+ 			WLR_XDG_TOPLEVEL_WM_CAPABILITIES_FULLSCREEN);
+@@ -1360,6 +1381,22 @@ focustop(Monitor *m)
+ 	return NULL;
+ }
+ 
++Client *
++focustop_onlytiled(Monitor *m, int onlytiled)
++{
++	Client *c;
++	if (!m)
++		return NULL;
++	wl_list_for_each(c, &fstack, flink) {
++		if (VISIBLEON(c, m)) {
++			if ((onlytiled == 1 && c->isfloating) || (onlytiled == 2 && (!c->isfloating || !m->lt[m->sellt]->arrange)))
++				continue;
++			return c;
++		}
++	}
++	return NULL;
++}
++
+ void
+ fullscreennotify(struct wl_listener *listener, void *data)
+ {
+@@ -2003,6 +2040,195 @@ skip:
+ 	wlr_output_state_finish(&pending);
+ }
+ 
++struct text_buffer {
++	struct wlr_buffer base;
++	void *data;
++	uint32_t format;
++	size_t stride;
++};
++
++static void text_buffer_destroy(struct wlr_buffer *wlr_buffer) {
++	struct text_buffer *buffer = wl_container_of(wlr_buffer, buffer, base);
++	free(buffer->data);
++	free(buffer);
++}
++
++static bool text_buffer_begin_data_ptr_access(struct wlr_buffer *wlr_buffer,
++		uint32_t flags, void **data, uint32_t *format, size_t *stride) {
++	struct text_buffer *buffer = wl_container_of(wlr_buffer, buffer, base);
++	if(data != NULL) {
++		*data = (void *)buffer->data;
++	}
++	if(format != NULL) {
++		*format = buffer->format;
++	}
++	if(stride != NULL) {
++		*stride = buffer->stride;
++	}
++	return true;
++}
++
++static void text_buffer_end_data_ptr_access(struct wlr_buffer *wlr_buffer) {
++	// This space is intentionally left blank
++}
++
++static const struct wlr_buffer_impl text_buffer_impl = {
++	.destroy = text_buffer_destroy,
++	.begin_data_ptr_access = text_buffer_begin_data_ptr_access,
++	.end_data_ptr_access = text_buffer_end_data_ptr_access,
++};
++
++static struct text_buffer *text_buffer_create(uint32_t width, uint32_t height, uint32_t stride) {
++	struct text_buffer *buffer = calloc(1, sizeof(*buffer));
++	if (buffer == NULL) {
++		return NULL;
++	}
++
++	wlr_buffer_init(&buffer->base, &text_buffer_impl, width, height);
++	buffer->format = DRM_FORMAT_ARGB8888;
++	buffer->stride = stride;
++
++	buffer->data = malloc(buffer->stride * height);
++	if (buffer->data == NULL) {
++		free(buffer);
++		return NULL;
++	}
++
++	return buffer;
++}
++
++void
++rendertitlebar(Client *c)
++{
++	struct wl_list *init_destroy, *cursor_destroy;
++	cairo_surface_t *surface;
++	cairo_status_t status;
++	cairo_t *cr;
++	PangoFontDescription *desc;
++	PangoLayout *layout;
++	LayoutType title_type;
++	Client *l, *sel;
++	unsigned int len, tabsize, i;
++	const char *title;
++	const float *color;
++	unsigned char *data;
++	int stride;
++	struct text_buffer *text_buffer;
++	void *data_ptr;
++
++	if (!c || !c->scene || !c->mon || !selmon || (!VISIBLEON(c, selmon) && c->mon == selmon))
++		return;
++
++	if (c->titleisinit) {
++		init_destroy = cursor_destroy = &c->titlebar->node.events.destroy.listener_list;
++		do {
++		  cursor_destroy = cursor_destroy->next;
++		} while (cursor_destroy && cursor_destroy != init_destroy);
++		if (!cursor_destroy) {
++		  return;
++		}
++		wlr_scene_node_destroy(&c->titlebar->node);
++	}
++	c->titleisinit = c->istabbed = 0;
++
++	sel = focustop_onlytiled(c->mon, c->isfloating + 1);
++
++	if (c->isfullscreen)
++		return;
++	title_type = c->isfloating ? floating_title_type : c->mon->lt[c->mon->sellt]->type;
++
++	if (title_type == LAYOUT_TYPE_TABS_ONLY_MULTIPLE_CLIENTS || title_type == LAYOUT_TYPE_TABS_ALWAYS) {
++		len = 0;
++		wl_list_for_each(l, &clients, link) {
++			if (VISIBLEON(l, c->mon) && l->isfloating == c->isfloating)
++				len++;
++		}
++		if (title_type == LAYOUT_TYPE_TABS_ONLY_MULTIPLE_CLIENTS && len <= 1)
++			return;
++	}
++
++	if (c->mon->lt[c->mon->sellt]->render_top_only == 1 && !c->isfloating && c != sel) {
++		c->istabbed = 1;
++		return;
++	} /*else if (c->mon->lt[c->mon->sellt]->render_top_only == 2 && c != sel) {
++		c->istabbed = 1;
++		return;
++	}*/
++
++	if (title_type == LAYOUT_TYPE_NONE)
++		return;
++  
++	surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, c->geom.width, title_height);
++	if ((status = cairo_surface_status(surface)) != CAIRO_STATUS_SUCCESS) {
++		wlr_log(WLR_ERROR, "cairo_image_surface_create failed: %s",
++			cairo_status_to_string(status));
++		return;
++	}
++	cr = cairo_create(surface);
++	desc = pango_font_description_from_string(title_font);
++	layout = pango_cairo_create_layout(cr);
++	pango_layout_set_font_description(layout, desc);
++	pango_layout_set_ellipsize(layout, PANGO_ELLIPSIZE_NONE);
++
++	cairo_set_line_width(cr, title_border_width);
++
++	if (title_type == LAYOUT_TYPE_LABEL) {
++		cairo_rectangle(cr, 0, 0, c->geom.width, title_height);
++		cairo_set_source_rgba(cr, title_focus_bg[0], title_focus_bg[1], title_focus_bg[2], title_focus_bg[3]);
++		cairo_fill_preserve(cr);
++		cairo_set_source_rgba(cr, title_border_color[0], title_border_color[1], title_border_color[2], title_border_color[3]);
++		cairo_stroke(cr);
++		cairo_set_source_rgba(cr, title_font_color[0], title_font_color[1], title_font_color[2], title_font_color[3]);
++		title = client_get_title(c);
++		pango_layout_set_text(layout, title ? title : " ", (c->geom.width - title_padding) * PANGO_SCALE);
++		cairo_move_to(cr, title_padding, 0);
++		pango_cairo_show_layout(cr, layout);
++	} else {
++		tabsize = c->geom.width / len;
++		i = 0;
++		wl_list_for_each(l, &clients, link) {
++			if (VISIBLEON(l, c->mon) && l->isfloating == c->isfloating) {
++				cairo_rectangle(cr, i * tabsize, 0, (i + 1) * tabsize, title_height);
++				color = (l == sel) ? title_focus_bg
++					: (c->isurgent ? title_urgent_bg : title_root_bg);
++				cairo_set_source_rgba(cr, color[0], color[1], color[2], color[3]);
++				cairo_fill_preserve(cr);
++				cairo_set_source_rgba(cr, title_border_color[0], title_border_color[1], title_border_color[2], title_border_color[3]);
++				cairo_stroke(cr);
++				cairo_set_source_rgba(cr, title_font_color[0], title_font_color[1], title_font_color[2], title_font_color[3]);
++				title = client_get_title(l);
++				pango_layout_set_text(layout, title ? title : " ", (tabsize - title_padding) * PANGO_SCALE);
++				cairo_move_to(cr, (i * tabsize) + title_padding, 0);
++				pango_cairo_show_layout(cr, layout);
++				i++;
++			}
++		}
++	}
++  
++	data = cairo_image_surface_get_data(surface);
++	stride = cairo_image_surface_get_stride(surface);
++	text_buffer = text_buffer_create(c->geom.width, title_height, stride);
++
++	if(!wlr_buffer_begin_data_ptr_access(&text_buffer->base,
++      WLR_BUFFER_DATA_PTR_ACCESS_WRITE, &data_ptr, NULL, NULL)) {
++		wlr_log(WLR_ERROR, "%s", "Failed to get pointer access to text buffer");
++		return;
++	}
++	memcpy(data_ptr, data, stride * title_height);
++	wlr_buffer_end_data_ptr_access(&text_buffer->base);
++	cairo_surface_destroy(surface);
++
++	c->titlebar = wlr_scene_buffer_create(c->scene, &text_buffer->base);
++	c->titleisinit = c->istabbed = 1;
++
++	wlr_scene_node_set_position(&c->titlebar->node, 0, !title_top ? c->geom.height - title_height : 0);
++	wlr_scene_node_raise_to_top(&c->titlebar->node);
++
++	pango_font_description_free(desc);
++	g_object_unref(layout);
++	cairo_destroy(cr);
++}
++
+ void
+ requestdecorationmode(struct wl_listener *listener, void *data)
+ {
+@@ -2036,24 +2262,30 @@ resize(Client *c, struct wlr_box geo, int interact)
+ {
+ 	struct wlr_box *bbox = interact ? &sgeom : &c->mon->w;
+ 	struct wlr_box clip;
++	unsigned int th;
++	int draw_borders = 1;
+ 	client_set_bounds(c, geo.width, geo.height);
+ 	c->geom = geo;
++	c->bw = draw_borders ? borderpx : 0;
+ 	applybounds(c, bbox);
+ 
++	rendertitlebar(c);
++	th = c->istabbed ? title_height : c->bw;
++
+ 	/* Update scene-graph, including borders */
+ 	wlr_scene_node_set_position(&c->scene->node, c->geom.x, c->geom.y);
+-	wlr_scene_node_set_position(&c->scene_surface->node, c->bw, c->bw);
+-	wlr_scene_rect_set_size(c->border[0], c->geom.width, c->bw);
+-	wlr_scene_rect_set_size(c->border[1], c->geom.width, c->bw);
+-	wlr_scene_rect_set_size(c->border[2], c->bw, c->geom.height - 2 * c->bw);
+-	wlr_scene_rect_set_size(c->border[3], c->bw, c->geom.height - 2 * c->bw);
+-	wlr_scene_node_set_position(&c->border[1]->node, 0, c->geom.height - c->bw);
+-	wlr_scene_node_set_position(&c->border[2]->node, 0, c->bw);
+-	wlr_scene_node_set_position(&c->border[3]->node, c->geom.width - c->bw, c->bw);
++	wlr_scene_node_set_position(&c->scene_surface->node, c->bw, title_top ? th : c->bw);
++	wlr_scene_rect_set_size(c->border[0], c->geom.width, (title_top && c->istabbed) ? 0 : c->bw);
++	wlr_scene_rect_set_size(c->border[1], c->geom.width, (!title_top && c->istabbed) ? 0 : c->bw);
++	wlr_scene_rect_set_size(c->border[2], c->bw, c->geom.height - (c->bw + th));
++	wlr_scene_rect_set_size(c->border[3], c->bw, c->geom.height - (c->bw + th));
++	wlr_scene_node_set_position(&c->border[1]->node, 0, c->geom.height - (title_top ? c->bw : th));
++	wlr_scene_node_set_position(&c->border[2]->node, 0, title_top ? th : c->bw);
++	wlr_scene_node_set_position(&c->border[3]->node, c->geom.width - c->bw, title_top ? th : c->bw);
+ 
+ 	/* this is a no-op if size hasn't changed */
+ 	c->resize = client_set_size(c, c->geom.width - 2 * c->bw,
+-			c->geom.height - 2 * c->bw);
++			c->geom.height - (c->bw + th));
+ 	client_get_clip(c, &clip);
+ 	wlr_scene_subsurface_tree_set_clip(&c->scene_surface->node, &clip);
+ }
+@@ -2274,6 +2506,11 @@ setup(void)
+ 
+ 	int i, sig[] = {SIGCHLD, SIGINT, SIGTERM, SIGPIPE};
+ 	struct sigaction sa = {.sa_flags = SA_RESTART, .sa_handler = handlesig};
++	cairo_surface_t *surface;
++	cairo_t *cr;
++	PangoFontDescription *desc;
++	PangoLayout *layout;
++	
+ 	sigemptyset(&sa.sa_mask);
+ 
+ 	for (i = 0; i < (int)LENGTH(sig); i++)
+@@ -2506,6 +2743,24 @@ setup(void)
+ 
+ 	wlr_scene_set_presentation(scene, wlr_presentation_create(dpy, backend));
+ 
++	surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, 0, 0);
++
++	cr = cairo_create(surface);
++
++	desc = pango_font_description_from_string(title_font);
++	/* Create Pango layout. */
++	layout = pango_cairo_create_layout(cr);
++	pango_layout_set_font_description(layout, desc);
++	pango_layout_set_text(layout, " ", -1);
++	/* Set width and height to text size */
++	pango_layout_get_pixel_size(layout, NULL, &title_height);
++
++	/* Cleanup */
++	pango_font_description_free (desc);
++	cairo_surface_destroy(surface);
++	g_object_unref (layout);
++	cairo_destroy(cr);
++
+ 	/* Make sure XWayland clients don't connect to the parent X server,
+ 	 * e.g when running in the x11 backend or the wayland backend and the
+ 	 * compositor has Xwayland support */
+@@ -2978,6 +3233,7 @@ createnotifyx11(struct wl_listener *listener, void *data)
+ 	c->surface.xwayland = xsurface;
+ 	c->type = X11;
+ 	c->bw = borderpx;
++	c->titleisinit = c->istabbed = 0;
+ 
+ 	/* Listen to the various events it can emit */
+ 	LISTEN(&xsurface->events.associate, &c->associate, associatex11);
+-- 
+2.44.0
+

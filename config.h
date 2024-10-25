@@ -22,6 +22,8 @@ static const float rootcolor[]   = COLOR(0x1A1A1Aff);  // Background color
 static const float bordercolor[] = COLOR(0x333333ff);  // Normal border (color0)
 static const float focuscolor[]  = COLOR(0x8C4665ff);  // Focused border (slate blue/color4)
 static const float urgentcolor[] = COLOR(0x8C4665ff);  // Urgent border (muted rose/color1)
+static const char *cursor_theme            = NULL;
+static const char cursor_size[]            = "40"; /* Make sure it's a valid integer, otherwise things will break */
 /* This conforms to the xdg-protocol. Set the alpha to zero to restore the old behavior */
 static const float fullscreen_bg[]         = {0.1f, 0.1f, 0.1f, 1.0f}; /* You can also use glsl colors */
 
