@@ -7,10 +7,10 @@ ALSAMIXER_CMD="$TERMINAL -e alsamixer"
 launch_dwlb() {
     dwlb -ipc \
         -status-commands \
-        -font "PragmataPro:size=10" \
-        -vertical-padding 6 \
-        -active-fg-color "#C0C0C0" \
-        -active-bg-color "#1A1A1A" \
+        -font "PragmataPro:size=9" \
+        -vertical-padding 8 \
+        -active-fg-color "#1A1A1A" \
+        -active-bg-color "#8C4665" \
         -occupied-fg-color "#899CA1" \
         -occupied-bg-color "#1A1A1A" \
         -inactive-fg-color "#3D3D3D" \
@@ -20,7 +20,6 @@ launch_dwlb() {
         -middle-bg-color "#1A1A1A" \
         -middle-bg-color-selected "#1A1A1A" &
 }
-
 
 # Sys 
 get_cpu() {
