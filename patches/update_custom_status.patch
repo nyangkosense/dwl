@@ -1,0 +1,72 @@
+diff --git a/config.h b/config.h
+index cfc1b81..b6ba819 100644
+--- a/config.h
++++ b/config.h
+@@ -9,7 +9,7 @@ static const int bypass_surface_visibility = 0;  /* 1 means idle inhibitors will
+ static const unsigned int borderpx         = 1;  /* border pixel of windows */
+ static const int showbar                   = 1; /* 0 means no bar */
+ static const int topbar                    = 1; /* 0 means bottom bar */
+-static const char *fonts[]                 = {"knxt:size=14"};
++static const char *fonts[]                 = {"ProggyCleanTT:size=12"};
+ static const float rootcolor[]             = COLOR(0x000000ff);
+ /* This conforms to the xdg-protocol. Set the alpha to zero to restore the old behavior */
+ static const float fullscreen_bg[]         = {0.1f, 0.1f, 0.1f, 1.0f}; /* You can also use glsl colors */
+diff --git a/dwl b/dwl
+index c72941f..021e4ad 100755
+Binary files a/dwl and b/dwl differ
+diff --git a/dwl.c b/dwl.c
+index 1e199f3..4e23865 100644
+--- a/dwl.c
++++ b/dwl.c
+@@ -396,6 +396,7 @@ static const char broken[] = "broken";
+ static pid_t child_pid = -1;
+ static int locked;
+ static void *exclusive_focus;
++static struct wl_event_source *timer_source;
+ static struct wl_display *dpy;
+ static struct wl_event_loop *event_loop;
+ static struct wlr_backend *backend;
+@@ -476,6 +477,27 @@ static xcb_atom_t netatom[NetLast];
+ /* attempt to encapsulate suck into one file */
+ #include "client.h"
+ 
++static int
++update_status(void *data)
++{
++    time_t t = time(NULL);
++    struct tm *tm = localtime(&t);
++    char datetime[64];
++    
++    strftime(datetime, sizeof(datetime), "%F %T", tm);
++    snprintf(stext, sizeof(stext), "%s", datetime);
++
++    // Bars neu zeichnen
++    Monitor *m;
++    wl_list_for_each(m, &mons, link)
++        drawbar(m);
++
++    // Timer alle Sekunde wiederholen
++    wl_event_source_timer_update(timer_source, 1000);
++    
++    return 1;
++}
++
+ /* function implementations */
+ void
+ applybounds(Client *c, struct wlr_box *bbox)
+@@ -2838,6 +2860,9 @@ setup(void)
+ 		fprintf(stderr, "failed to setup XWayland X server, continuing without it\n");
+ 	}
+ #endif
++	struct wl_event_loop *loop = wl_display_get_event_loop(dpy);
++    timer_source = wl_event_loop_add_timer(loop, update_status, NULL);
++    wl_event_source_timer_update(timer_source, 1000);
+ }
+ 
+ void
+diff --git a/dwl.o b/dwl.o
+index 185b11d..0718ba3 100644
+Binary files a/dwl.o and b/dwl.o differ
+diff --git a/util.o b/util.o
+index 9bdc9c1..c8dc35e 100644
+Binary files a/util.o and b/util.o differ

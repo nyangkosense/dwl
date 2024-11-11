@@ -266,6 +266,14 @@ typedef struct {
 	struct wl_listener destroy;
 } SessionLock;
 
+typedef struct {
+    const char *command;
+    int interval;
+    time_t last_update;
+    char output[256];
+    uint32_t color;  // z.B. "#FF0000" für rot
+} CustomScript;
+
 /* function declarations */
 static void applybounds(Client *c, struct wlr_box *bbox);
 static void applyrules(Client *c);
@@ -273,6 +281,7 @@ static void arrange(Monitor *m);
 static void arrangelayer(Monitor *m, struct wl_list *list,
 		struct wlr_box *usable_area, int exclusive);
 static void arrangelayers(Monitor *m);
+static void autostartexec(void);
 static void axisnotify(struct wl_listener *listener, void *data);
 static bool baracceptsinput(struct wlr_scene_buffer *buffer, double *sx, double *sy);
 static void bufdestroy(struct wlr_buffer *buffer);
@@ -396,6 +405,7 @@ static const char broken[] = "broken";
 static pid_t child_pid = -1;
 static int locked;
 static void *exclusive_focus;
+static struct wl_event_source *timer_source;
 static struct wl_display *dpy;
 static struct wl_event_loop *event_loop;
 static struct wlr_backend *backend;
@@ -457,6 +467,12 @@ static const struct wlr_buffer_impl buffer_impl = {
     .end_data_ptr_access = bufdataend,
 };
 
+static CustomScript custom_scripts[] = {
+	{ "$HOME/.config/dwl/scripts/custom_message.sh", 60, 0, "", 0xc80a64d9},
+    { "$HOME/.config/dwl/scripts/time.sh", 1, 0, "", 0xc864f0d9},
+    { "uptime", 60, 0, "", 0xe46eFF},
+};
+
 #ifdef XWAYLAND
 static void activatex11(struct wl_listener *listener, void *data);
 static void associatex11(struct wl_listener *listener, void *data);
@@ -475,6 +491,71 @@ static xcb_atom_t netatom[NetLast];
 
 /* attempt to encapsulate suck into one file */
 #include "client.h"
+
+static char *
+run_command(const char *cmd) {
+    static char buf[256];
+    FILE *fp;
+
+    fp = popen(cmd, "r");
+    if (fp == NULL)
+        return NULL;
+
+    if (fgets(buf, sizeof(buf), fp) != NULL) {
+        size_t len = strlen(buf);
+        if (len > 0 && buf[len-1] == '\n')
+            buf[len-1] = '\0';
+    } else {
+        buf[0] = '\0';
+    }
+    
+    pclose(fp);
+    return buf;
+}
+
+static int
+update_status(void *data)
+{
+    time_t now;
+    time(&now);
+    char status_text[1024] = "";
+    size_t current_len = 0;
+
+    // Skripte durchlaufen und Status aufbauen
+    for (size_t i = 0; i < LENGTH(custom_scripts); i++) {
+        CustomScript *script = &custom_scripts[i];
+        
+        if (now - script->last_update >= script->interval) {
+            char *result = run_command(script->command);
+            if (result) {
+                // Nur den reinen Text ohne Steuerzeichen speichern
+                strncpy(script->output, result, sizeof(script->output) - 1);
+                script->last_update = now;
+            }
+        }
+        
+        // Nur den reinen Text mit Leerzeichen dazwischen
+        if (i > 0) {
+            current_len += snprintf(status_text + current_len, 
+                                 sizeof(status_text) - current_len, " ");
+        }
+        current_len += snprintf(status_text + current_len,
+                             sizeof(status_text) - current_len,
+                             "%s", script->output);
+    }
+
+    // "dwl-0.7" nicht mehr anhängen, nur die Skript-Outputs verwenden
+    strncpy(stext, status_text, sizeof(stext) - 1);
+    
+    Monitor *m;
+    wl_list_for_each(m, &mons, link)
+        drawbar(m);
+    
+    return 1;
+}
+
+static pid_t *autostart_pids;
+static size_t autostart_len;
 
 /* function implementations */
 void
@@ -626,6 +707,27 @@ arrangelayers(Monitor *m)
 			client_notify_enter(l->layer_surface->surface, wlr_seat_get_keyboard(seat));
 			return;
 		}
+	}
+}
+
+void
+autostartexec(void) {
+	const char *const *p;
+	size_t i = 0;
+
+	/* count entries */
+	for (p = autostart; *p; autostart_len++, p++)
+		while (*++p);
+
+	autostart_pids = calloc(autostart_len, sizeof(pid_t));
+	for (p = autostart; *p; i++, p++) {
+		if ((autostart_pids[i] = fork()) == 0) {
+			setsid();
+			execvp(*p, (char *const *)p);
+			die("dwl: execvp %s:", *p);
+		}
+		/* skip arguments */
+		while (*++p);
 	}
 }
 
@@ -827,11 +929,21 @@ checkidleinhibitor(struct wlr_surface *exclude)
 void
 cleanup(void)
 {
+	size_t i;
 #ifdef XWAYLAND
 	wlr_xwayland_destroy(xwayland);
 	xwayland = NULL;
 #endif
 	wl_display_destroy_clients(dpy);
+
+	/* kill child processes */
+	for (i = 0; i < autostart_len; i++) {
+		if (0 < autostart_pids[i]) {
+			kill(autostart_pids[i], SIGTERM);
+			waitpid(autostart_pids[i], NULL, 0);
+		}
+	}
+
 	if (child_pid > 0) {
 		kill(-child_pid, SIGTERM);
 		waitpid(child_pid, NULL, 0);
@@ -1521,11 +1633,44 @@ drawbar(Monitor *m)
 		return;
 
 	/* draw status first so it can be overdrawn by tags later */
-	if (m == selmon) { /* status is only drawn on selected monitor */
-		drwl_setscheme(m->drw, colors[SchemeNorm]);
-		tw = TEXTW(m, stext) - m->lrpad + 2; /* 2px right padding */
-		drwl_text(m->drw, m->b.width - tw, 0, tw, m->b.height, 0, stext, 0);
-	}
+  if (m == selmon) {
+        int status_width = 0;
+        int curr_x;
+        
+        // Gesamtbreite für alle Skript-Outputs berechnen
+        for (size_t i = 0; i < LENGTH(custom_scripts); i++) {
+            if (i > 0) status_width += TEXTW(m, " "); // Leerzeichen zwischen Segmenten
+            status_width += TEXTW(m, custom_scripts[i].output);
+        }
+        
+        tw = status_width + 2; // +2 für padding
+        curr_x = m->b.width - tw;
+        
+        // Jeden Skript-Output rendern
+        for (size_t i = 0; i < LENGTH(custom_scripts); i++) {
+            // Setze die Farbe für dieses Skript
+            uint32_t scheme[] = {
+                custom_scripts[i].color,           // Textfarbe
+                colors[SchemeNorm][ColBg],        // Hintergrund
+                colors[SchemeNorm][ColBorder]     // Rahmen
+            };
+            drwl_setscheme(m->drw, scheme);
+            
+            // Leerzeichen zwischen Segmenten
+            if (i > 0) {
+                drwl_text(m->drw, curr_x, 0, 
+                         TEXTW(m, " "), m->b.height, 
+                         0, " ", 0);
+                curr_x += TEXTW(m, " ");
+            }
+            
+            // Skript-Output rendern
+            int width = TEXTW(m, custom_scripts[i].output);
+            drwl_text(m->drw, curr_x, 0, width, m->b.height, 
+                     0, custom_scripts[i].output, 0);
+            curr_x += width;
+        }
+    }
 
 	wl_list_for_each(c, &clients, link) {
 		if (c->mon != m)
@@ -1740,18 +1885,31 @@ void
 handlesig(int signo)
 {
 	if (signo == SIGCHLD) {
-#ifdef XWAYLAND
 		siginfo_t in;
 		/* wlroots expects to reap the XWayland process itself, so we
 		 * use WNOWAIT to keep the child waitable until we know it's not
 		 * XWayland.
 		 */
 		while (!waitid(P_ALL, 0, &in, WEXITED|WNOHANG|WNOWAIT) && in.si_pid
-				&& (!xwayland || in.si_pid != xwayland->server->pid))
-			waitpid(in.si_pid, NULL, 0);
-#else
-		while (waitpid(-1, NULL, WNOHANG) > 0);
+#ifdef XWAYLAND
+			   && (!xwayland || in.si_pid != xwayland->server->pid)
 #endif
+			   ) {
+			pid_t *p, *lim;
+			waitpid(in.si_pid, NULL, 0);
+			if (in.si_pid == child_pid)
+				child_pid = -1;
+			if (!(p = autostart_pids))
+				continue;
+			lim = &p[autostart_len];
+
+			for (; p < lim; p++) {
+				if (*p == in.si_pid) {
+					*p = -1;
+					break;
+				}
+			}
+		}
 	} else if (signo == SIGINT || signo == SIGTERM) {
 		quit(NULL);
 	}
@@ -2427,6 +2585,7 @@ run(char *startup_cmd)
 		die("startup: backend_start");
 
 	/* Now that the socket exists and the backend is started, run the startup command */
+	autostartexec();
 	if (startup_cmd) {
 		if ((child_pid = fork()) < 0)
 			die("startup: fork:");
@@ -2838,6 +2997,9 @@ setup(void)
 		fprintf(stderr, "failed to setup XWayland X server, continuing without it\n");
 	}
 #endif
+	struct wl_event_loop *loop = wl_display_get_event_loop(dpy);
+    timer_source = wl_event_loop_add_timer(loop, update_status, NULL);
+    wl_event_source_timer_update(timer_source, 1000);
 }
 
 void

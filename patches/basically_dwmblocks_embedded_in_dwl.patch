@@ -1,0 +1,147 @@
+diff --git a/config.h b/config.h
+index cfc1b81..b6ba819 100644
+--- a/config.h
++++ b/config.h
+@@ -9,7 +9,7 @@ static const int bypass_surface_visibility = 0;  /* 1 means idle inhibitors will
+ static const unsigned int borderpx         = 1;  /* border pixel of windows */
+ static const int showbar                   = 1; /* 0 means no bar */
+ static const int topbar                    = 1; /* 0 means bottom bar */
+-static const char *fonts[]                 = {"knxt:size=14"};
++static const char *fonts[]                 = {"ProggyCleanTT:size=12"};
+ static const float rootcolor[]             = COLOR(0x000000ff);
+ /* This conforms to the xdg-protocol. Set the alpha to zero to restore the old behavior */
+ static const float fullscreen_bg[]         = {0.1f, 0.1f, 0.1f, 1.0f}; /* You can also use glsl colors */
+diff --git a/dwl b/dwl
+index c72941f..ff7b2cd 100755
+Binary files a/dwl and b/dwl differ
+diff --git a/dwl.c b/dwl.c
+index 1e199f3..d828a8e 100644
+--- a/dwl.c
++++ b/dwl.c
+@@ -266,6 +266,14 @@ typedef struct {
+ 	struct wl_listener destroy;
+ } SessionLock;
+ 
++typedef struct {
++    const char *command;
++    int interval;
++    time_t last_update;
++    char output[256];
++    const char *color;  // z.B. "#FF0000" für rot
++} CustomScript;
++
+ /* function declarations */
+ static void applybounds(Client *c, struct wlr_box *bbox);
+ static void applyrules(Client *c);
+@@ -396,6 +404,7 @@ static const char broken[] = "broken";
+ static pid_t child_pid = -1;
+ static int locked;
+ static void *exclusive_focus;
++static struct wl_event_source *timer_source;
+ static struct wl_display *dpy;
+ static struct wl_event_loop *event_loop;
+ static struct wlr_backend *backend;
+@@ -457,6 +466,12 @@ static const struct wlr_buffer_impl buffer_impl = {
+     .end_data_ptr_access = bufdataend,
+ };
+ 
++static CustomScript custom_scripts[] = {
++    { "$HOME/.config/dwl/scripts/time.sh", 1, 0, "", "#FF0000" },
++    { "uptime", 60, 0, "", "#0000FF" },
++};
++
++
+ #ifdef XWAYLAND
+ static void activatex11(struct wl_listener *listener, void *data);
+ static void associatex11(struct wl_listener *listener, void *data);
+@@ -476,6 +491,65 @@ static xcb_atom_t netatom[NetLast];
+ /* attempt to encapsulate suck into one file */
+ #include "client.h"
+ 
++static char *
++run_command(const char *cmd) {
++    static char buf[256];
++    FILE *fp;
++
++    fp = popen(cmd, "r");
++    if (fp == NULL)
++        return NULL;
++
++    if (fgets(buf, sizeof(buf), fp) != NULL) {
++        size_t len = strlen(buf);
++        if (len > 0 && buf[len-1] == '\n')
++            buf[len-1] = '\0';
++    } else {
++        buf[0] = '\0';
++    }
++    
++    pclose(fp);
++    return buf;
++}
++
++static int
++update_status(void *data) {
++    time_t now;
++    time(&now);
++    char status_text[1024] = "";
++    size_t current_len = 0;
++
++    // Jeden Script prüfen und bei Bedarf aktualisieren
++    for (size_t i = 0; i < LENGTH(custom_scripts); i++) {
++        CustomScript *script = &custom_scripts[i];
++        
++        // Prüfen ob Update nötig
++        if (now - script->last_update >= script->interval) {
++            char *result = run_command(script->command);
++            if (result) {
++                strncpy(script->output, result, sizeof(script->output) - 1);
++                script->last_update = now;
++            }
++        }
++        
++        // Zum Status-Text hinzufügen
++        current_len += snprintf(status_text + current_len, 
++                              sizeof(status_text) - current_len,
++                              "%s ", script->output);
++    }
++
++    // Status setzen und Bar neu zeichnen
++    strncpy(stext, status_text, sizeof(stext) - 1);
++    
++    Monitor *m;
++    wl_list_for_each(m, &mons, link)
++        drawbar(m);
++    
++    // Timer erneuern
++    wl_event_source_timer_update(timer_source, 1000);
++    return 1;
++}
++
+ /* function implementations */
+ void
+ applybounds(Client *c, struct wlr_box *bbox)
+@@ -1523,7 +1597,7 @@ drawbar(Monitor *m)
+ 	/* draw status first so it can be overdrawn by tags later */
+ 	if (m == selmon) { /* status is only drawn on selected monitor */
+ 		drwl_setscheme(m->drw, colors[SchemeNorm]);
+-		tw = TEXTW(m, stext) - m->lrpad + 2; /* 2px right padding */
++		tw = TEXTW(m, stext) - m->lrpad + 2; /* 2px right padding */ // 
+ 		drwl_text(m->drw, m->b.width - tw, 0, tw, m->b.height, 0, stext, 0);
+ 	}
+ 
+@@ -2838,6 +2912,9 @@ setup(void)
+ 		fprintf(stderr, "failed to setup XWayland X server, continuing without it\n");
+ 	}
+ #endif
++	struct wl_event_loop *loop = wl_display_get_event_loop(dpy);
++    timer_source = wl_event_loop_add_timer(loop, update_status, NULL);
++    wl_event_source_timer_update(timer_source, 1000);
+ }
+ 
+ void
+diff --git a/dwl.o b/dwl.o
+index 185b11d..376ad8c 100644
+Binary files a/dwl.o and b/dwl.o differ
+diff --git a/util.o b/util.o
+index 9bdc9c1..c8dc35e 100644
+Binary files a/util.o and b/util.o differ
