@@ -1,3 +1,7 @@
+#define USER "seb"
+#define USERDIR "/home/" USER
+#define SCRIPTDIR USERDIR "/.config/dwl/scripts"
+
 /* Taken from https://github.com/djpohly/dwl/issues/466 */
 #define COLOR(hex)    { ((hex >> 24) & 0xFF) / 255.0f, \
                         ((hex >> 16) & 0xFF) / 255.0f, \
@@ -8,8 +12,9 @@ static const int sloppyfocus               = 1;  /* focus follows mouse */
 static const int bypass_surface_visibility = 0;  /* 1 means idle inhibitors will disable idle tracking even if it's surface isn't visible  */
 static const unsigned int borderpx         = 1;  /* border pixel of windows */
 static const int showbar                   = 1; /* 0 means no bar */
-static const int topbar                    = 1; /* 0 means bottom bar */
-static const char *fonts[]                 = {"ProggyCleanTT:size=12"};
+static const int topbar                    = 0; /* 0 means bottom bar */
+//static const char *fonts[]                 = {"ProggyCleanTT:size=12"};
+static const char *fonts[]                 = {"PragmataPro:size=13"};
 static const float rootcolor[]             = COLOR(0x000000ff);
 /* This conforms to the xdg-protocol. Set the alpha to zero to restore the old behavior */
 static const float fullscreen_bg[]         = {0.1f, 0.1f, 0.1f, 1.0f}; /* You can also use glsl colors */
@@ -21,7 +26,7 @@ static uint32_t colors[][3]                = {
 };
 
 /* tagging - TAGCOUNT must be no greater than 31 */
-static char *tags[] = { "1", "2", "3", "4", "5", "6", "7", "8", "9" };
+static char *tags[] = { "www", "code", "subl4", "x", "y", "z", "i", "ii", "iii" };
 
 /* logging */
 static int log_level = WLR_ERROR;
@@ -29,7 +34,8 @@ static int log_level = WLR_ERROR;
 /* Autostart */
 static const char *const autostart[] = {
 	"wbg", "/path/to/your/image", NULL,
-	"/home/seb/.config/dwl/scripts/start.sh", NULL,
+	SCRIPTDIR "/start.sh", NULL,
+	SCRIPTDIR "/check_vpn.sh", NULL,
 	NULL /* temrinate */
 };
 /* NOTE: ALWAYS keep a rule declared even if you don't use rules (e.g leave at least one example) */
@@ -131,7 +137,7 @@ static const enum libinput_config_tap_button_map button_map = LIBINPUT_CONFIG_TA
 #define SHCMD(cmd) { .v = (const char*[]){ "/bin/sh", "-c", cmd, NULL } }
 
 /* commands */
-static const char *termcmd[] = { "foot", NULL };
+static const char *termcmd[] = { "footclient", NULL };
 static const char *menucmd[] = { "dmenu-wl_run", "-p", "Run", NULL };
 
 static const Key keys[] = {
