@@ -550,6 +550,8 @@ update_status(void *data)
     Monitor *m;
     wl_list_for_each(m, &mons, link)
         drawbar(m);
+
+    wl_event_source_timer_update(timer_source, 1000);
     
     return 1;
 }
@@ -2999,6 +3001,9 @@ setup(void)
 #endif
 	struct wl_event_loop *loop = wl_display_get_event_loop(dpy);
     timer_source = wl_event_loop_add_timer(loop, update_status, NULL);
+
+    update_status(NULL);
+
     wl_event_source_timer_update(timer_source, 1000);
 }
 
