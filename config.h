@@ -10,26 +10,31 @@
 /* appearance */
 static const int sloppyfocus               = 1;  /* focus follows mouse */
 static const int bypass_surface_visibility = 0;  /* 1 means idle inhibitors will disable idle tracking even if it's surface isn't visible  */
-static const unsigned int borderpx         = 1;  /* border pixel of windows */
+static const unsigned int borderpx         = 3;  /* border pixel of windows */
 static const int showbar                   = 1; /* 0 means no bar */
-static const int topbar                    = 0; /* 0 means bottom bar */
+static const int topbar                    = 1; /* 0 means bottom bar */
 //static const char *fonts[]                 = {"ProggyCleanTT:size=12"};
 static const char *fonts[]                 = {"PragmataPro:size=13"};
 static const float rootcolor[]             = COLOR(0x000000ff);
 /* This conforms to the xdg-protocol. Set the alpha to zero to restore the old behavior */
 static const float fullscreen_bg[]         = {0.1f, 0.1f, 0.1f, 1.0f}; /* You can also use glsl colors */
-static uint32_t colors[][3]                = {
-	/*               fg          bg          border    */
-	[SchemeNorm] = { 0xbbbbbbff, 0x222222ff, 0x444444ff },
-	[SchemeSel]  = { 0xeeeeeeff, 0x005577ff, 0x005577ff },
-	[SchemeUrg]  = { 0,          0,          0x770000ff },
+static uint32_t colors[][3] = {
+    /*               fg          bg          border    */
+    [SchemeNorm] = { 0xd33682ff, 0x002b36ff, 0x586e75ff }, /* base0, base03, base01 */
+    [SchemeSel]  = { 0xd33682ff, 0x002b36ff, 0x2aa198ff }, /* base2, violet, cyan */
+    [SchemeUrg]  = { 0,          0,          0xdc322fff }, /* red */
 };
-
 /* tagging - TAGCOUNT must be no greater than 31 */
-static char *tags[] = { "www", "code", "subl4", "x", "y", "z", "i", "ii", "iii" };
+static char *tags[] = { " ", "", "", " ", "", ""};
 
 /* logging */
 static int log_level = WLR_ERROR;
+
+/* scripts for statusbar */
+static CustomScript custom_scripts[] = {
+    { "$HOME/.config/dwl/scripts/weather.sh", 60, 0, "", 0xd33682ff},
+    { "$HOME/.config/dwl/scripts/time.sh", 1, 0, "", 0xd33682ff},
+};
 
 /* Autostart */
 static const char *const autostart[] = {
@@ -49,9 +54,9 @@ static const Rule rules[] = {
 /* layout(s) */
 static const Layout layouts[] = {
 	/* symbol     arrange function */
-	{ "[]=",      tile },
-	{ "><>",      NULL },    /* no layout function means floating behavior */
-	{ "[M]",      monocle },
+	{ "󰕶",      tile },
+	{ "󰇥",      NULL },    /* no layout function means floating behavior */
+	{ "󰢡",      monocle },
 };
 
 /* monitors */
@@ -115,8 +120,8 @@ static const uint32_t send_events_mode = LIBINPUT_CONFIG_SEND_EVENTS_ENABLED;
 LIBINPUT_CONFIG_ACCEL_PROFILE_FLAT
 LIBINPUT_CONFIG_ACCEL_PROFILE_ADAPTIVE
 */
-static const enum libinput_config_accel_profile accel_profile = LIBINPUT_CONFIG_ACCEL_PROFILE_ADAPTIVE;
-static const double accel_speed = 0.0;
+static const enum libinput_config_accel_profile accel_profile = LIBINPUT_CONFIG_ACCEL_PROFILE_FLAT;
+static const double accel_speed = 0.01;
 
 /* You can choose between:
 LIBINPUT_CONFIG_TAP_MAP_LRM -- 1/2/3 finger tap maps to left/right/middle
@@ -137,24 +142,32 @@ static const enum libinput_config_tap_button_map button_map = LIBINPUT_CONFIG_TA
 #define SHCMD(cmd) { .v = (const char*[]){ "/bin/sh", "-c", cmd, NULL } }
 
 /* commands */
-static const char *termcmd[] = { "footclient", NULL };
+static const char *termcmd[] = { "alacritty", NULL };
 static const char *menucmd[] = { "dmenu-wl_run", "-p", "Run", NULL };
 
 static const Key keys[] = {
 	/* Note that Shift changes certain key codes: c -> C, 2 -> at, etc. */
 	/* modifier                  key                 function        argument */
 	{ MODKEY,                    XKB_KEY_d,          spawn,          {.v = menucmd} },
-	{ MODKEY,		     XKB_KEY_Return,     spawn,          {.v = termcmd} },
+	{ MODKEY,		     		 XKB_KEY_Return,     spawn,          {.v = termcmd} },
 	{ MODKEY,                    XKB_KEY_b,          togglebar,      {0} },
 	{ MODKEY,                    XKB_KEY_j,          focusstack,     {.i = +1} },
 	{ MODKEY,                    XKB_KEY_k,          focusstack,     {.i = -1} },
+	{ MODKEY|WLR_MODIFIER_CTRL,  XKB_KEY_Left,       focusdir,       {.ui = 0} },
+	{ MODKEY|WLR_MODIFIER_CTRL,  XKB_KEY_Right,      focusdir,       {.ui = 1} },
+	{ MODKEY|WLR_MODIFIER_CTRL,  XKB_KEY_Up,         focusdir,       {.ui = 2} },
+	{ MODKEY|WLR_MODIFIER_CTRL,  XKB_KEY_Down,       focusdir,       {.ui = 3} },
+	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_Left,       swapdir,        {.ui = 0} },
+	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_Right,      swapdir,        {.ui = 1} },
+	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_Up,         swapdir,        {.ui = 2} },
+	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_Down,       swapdir,        {.ui = 3} },
 	{ MODKEY,                    XKB_KEY_i,          incnmaster,     {.i = +1} },
 	{ MODKEY,                    XKB_KEY_d,          incnmaster,     {.i = -1} },
 	{ MODKEY,                    XKB_KEY_h,          setmfact,       {.f = -0.05f} },
 	{ MODKEY,                    XKB_KEY_l,          setmfact,       {.f = +0.05f} },
 	{ MODKEY,                    XKB_KEY_Return,     zoom,           {0} },
 	{ MODKEY,                    XKB_KEY_Tab,        view,           {0} },
-	{ MODKEY,		     XKB_KEY_q,          killclient,     {0} },
+	{ MODKEY,		     		 XKB_KEY_q,          killclient,     {0} },
 	{ MODKEY,                    XKB_KEY_t,          setlayout,      {.v = &layouts[0]} },
 	{ MODKEY,                    XKB_KEY_f,          setlayout,      {.v = &layouts[1]} },
 	{ MODKEY,                    XKB_KEY_m,          setlayout,      {.v = &layouts[2]} },

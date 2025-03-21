@@ -267,6 +267,11 @@ typedef struct {
 } SessionLock;
 
 typedef struct {
+	int x;
+	int y;
+} Vector;
+
+typedef struct {
     const char *command;
     int interval;
     time_t last_update;
@@ -330,6 +335,8 @@ static void drawbars(void);
 static void focusclient(Client *c, int lift);
 static void focusmon(const Arg *arg);
 static void focusstack(const Arg *arg);
+static void focusdir(const Arg *arg);
+static void swapdir(const Arg *arg);
 static Client *focustop(Monitor *m);
 static void fullscreennotify(struct wl_listener *listener, void *data);
 static void gpureset(struct wl_listener *listener, void *data);
@@ -467,10 +474,10 @@ static const struct wlr_buffer_impl buffer_impl = {
     .end_data_ptr_access = bufdataend,
 };
 
-static CustomScript custom_scripts[] = {
-    { "$HOME/.config/dwl/scripts/weather.sh", 60, 0, "", 0xedbf7bf5},
-    { "$HOME/.config/dwl/scripts/time.sh", 1, 0, "", 0xc864f0d9},
-};
+//static CustomScript custom_scripts[] = {
+//    { "$HOME/.config/dwl/scripts/weather.sh", 60, 0, "", 0xbbbbbbfc},
+//    { "$HOME/.config/dwl/scripts/time.sh", 1, 0, "", 0xbbbbbbfc},
+//};
 
 #ifdef XWAYLAND
 static void activatex11(struct wl_listener *listener, void *data);
@@ -1838,6 +1845,151 @@ focusstack(const Arg *arg)
 	}
 	/* If only one client is visible on selmon, then c == sel */
 	focusclient(c, 1);
+}
+
+Vector
+position_of_box(const struct wlr_box *box)
+{
+	return (Vector){
+		.x = box->x + box->width / 2,
+		.y = box->y + box->height / 2, 
+	};
+}
+
+Vector
+diff_of_vectors(Vector *a, Vector *b)
+{
+	return (Vector){
+		.x = b->x - a->x,
+		.y = b->y - a->y,
+	};
+}
+
+const char *
+direction_of_vector(Vector *vector)
+{
+	/* A zero length vector has no direction */
+	if (vector->x == 0 && vector->y == 0) return "";
+
+	if (abs(vector->y) > abs(vector->x)){
+		return (vector->y > 0) ? "bottom" : "top";
+	} else {
+		return (vector->x > 0) ? "right" : "left";
+	}
+}
+
+uint32_t
+vector_length(Vector *vector)
+{
+	return (uint32_t)sqrt(vector->x * vector->x + vector->y * vector->y);
+}
+
+Client *
+client_in_direction(const char *direction, const int *skipfloat)
+{
+	Client *cfocused = focustop(selmon);
+	Vector cfocusedposition;
+	Client *ctarget = NULL;
+	double targetdistance = INFINITY;
+	Client *c;
+
+	if (!cfocused || cfocused->isfullscreen || (skipfloat && cfocused->isfloating))
+		return NULL;
+
+	cfocusedposition = position_of_box(&cfocused->geom);
+
+	wl_list_for_each(c, &clients, link){
+		Vector cposition;
+		Vector positiondiff;
+		uint32_t distance;
+
+		if (c == cfocused)
+			continue;
+
+		if (skipfloat && c->isfloating)
+			continue;
+
+		cposition = position_of_box(&c->geom);
+		positiondiff = diff_of_vectors(&cfocusedposition, &cposition);
+
+		if (strcmp(direction, direction_of_vector(&positiondiff)) != 0)
+			continue;
+
+		distance = vector_length(&positiondiff);
+
+		if (distance < targetdistance){
+			ctarget = c;
+			targetdistance = distance;
+		}
+	}
+	return ctarget;
+}
+
+void
+focusdir(const Arg *arg)
+{
+	Client *c = NULL;
+
+	if (arg->ui == 0)
+		c = client_in_direction("left", (int *)0);
+	if (arg->ui == 1)
+		c = client_in_direction("right", (int *)0);
+	if (arg->ui == 2)
+		c = client_in_direction("top", (int *)0);
+	if (arg->ui == 3)
+		c = client_in_direction("bottom", (int *)0);
+
+	if (c != NULL)
+		focusclient(c, 1 );
+}
+
+void
+wl_list_swap(struct wl_list *list1, struct wl_list *list2)
+{
+	struct wl_list *prev1, *next1, *prev2, *next2;
+	struct wl_list temp;
+
+	if (list1 == list2){
+		return;
+	} 
+
+	prev1 = list1->prev;
+	next1 = list1->next;
+
+	prev2 = list2->prev;
+	next2 = list2->next;
+
+	prev1->next = list2;
+	next1->prev = list2;
+	prev2->next = list1; 
+	next2->prev = list1;
+
+	temp = *list1;
+	*list1 = *list2;
+	*list2 = temp;
+}
+
+void
+swapdir(const Arg *arg)
+{
+	Client *c = NULL;
+	Client *cfocused;
+
+	if (arg->ui == 0)
+		c = client_in_direction("left", (int *)1);
+	if (arg->ui == 1)
+		c = client_in_direction("right", (int *)1);
+	if (arg->ui ==2)
+		c = client_in_direction("top", (int *)1);
+	if (arg->ui == 3)
+		c = client_in_direction("bottom", (int *)1);
+
+	if (c == NULL)
+		return;
+
+	cfocused = focustop(selmon);
+	wl_list_swap(&cfocused->link, &c->link);
+	arrange(selmon);
 }
 
 /* We probably should change the name of this, it sounds like
